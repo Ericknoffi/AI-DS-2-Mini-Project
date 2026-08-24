@@ -6,7 +6,7 @@
 
 ## 📌 Executive Summary & Problem Statement
 
-Modern enterprise systems generate massive volumes of server request logs. Manually spotting anomalies, security threats, or cascading microservice outages is slow and error-prone.
+Modern enterprise systems generate massive volumes of server request logs. Manually spotting anomalies, security threats, or cascading microservice outages is slow, complex, and error-prone.
 
 **SentinelLog AI** solves this with a strict architectural principle:
 > **Algorithm Detects $\rightarrow$ AI Explains.**
@@ -38,6 +38,19 @@ Recall                   | 0.8649           | 0.9811           | +11.62%
 - **Precision (97.06%)**: Eliminates false positives so SRE teams are not overwhelmed by alert fatigue.
 - **Recall (98.11%)**: Successfully isolates virtually all real attack bursts and system crashes.
 - **PR-AUC (0.9900)**: Maintains near-perfect discrimination even with heavily imbalanced dataset distributions (~93% normal vs ~7% anomalous).
+
+---
+
+## 🌟 Advanced SRE & Platform Features
+
+| Feature | Description |
+| :--- | :--- |
+| 🎛️ **Manual ML Model Selector** | Dynamically scans `backend/models/` and lets operators switch between **Isolation Forest (300 Trees)**, **One-Class SVM**, and custom models on-the-fly. |
+| 🎚️ **Dynamic Sensitivity Slider** | Real-time threshold slider ($0.50 \leftrightarrow 0.95$) with *Permissive*, *Balanced*, and *Strict* modes for instant alert tuning. |
+| 📑 **One-Click Executive SRE Report** | Generates instant compliance audit reports with **Print-to-PDF** and **Markdown (.md)** download options. |
+| 🌓 **Dark & Light Mode Toggle** | Cyber-SRE Dark Mode and High-Contrast Enterprise Light Mode with persistent `localStorage` preference. |
+| 📄 **Full 5,000-Log Pagination** | High-performance log stream navigation across all 5,000+ records with configurable rows per page (`50`, `100`, `250`, `500`, `All`). |
+| 🤖 **AI Dual-Engine Strategy** | Google Gemini 1.5 Flash structured reasoning with automatic fallback to an offline heuristic SRE expert engine. |
 
 ---
 
@@ -87,6 +100,7 @@ Recall                   | 0.8649           | 0.9811           | +11.62%
   │                 SRE COMMAND CENTER DASHBOARD                │
   │  • Real-time log stream table with risk badges              │
   │  • Interactive Slide-Over AI Diagnostic Drawer              │
+  │  • Executive PDF / Markdown Audit Exporter                  │
   │  • Drag-and-drop CSV dataset ingestion                      │
   └─────────────────────────────────────────────────────────────┘
 ```
@@ -181,6 +195,8 @@ The AI engine uses Google Gemini with the following structured system prompt:
 
 ```
 Digiplus/
+├── .gitignore                     # Git ignore rules (protects API keys, venv, SQLite)
+├── .env.example                   # Environment configuration template
 ├── requirements.txt               # Workspace dependencies
 ├── README.md                      # Project documentation & benchmark scores
 ├── backend/
@@ -190,16 +206,17 @@ Digiplus/
 │   │   ├── dataset.csv            # 5,000 synthesized sequence logs
 │   │   └── generate_dataset.py    # Temporal sequence generator
 │   ├── models/
-│   │   ├── isolation_forest.joblib# Serialized model + scaler bundle
+│   │   ├── isolation_forest.joblib# Serialized Isolation Forest model bundle
 │   │   └── detected_logs.csv      # Processed dataset with anomaly scores
-│   ├── src/
-│   │   ├── detector.py            # Feature engineering & Isolation Forest
-│   │   ├── explainer.py           # Gemini LLM & Heuristic AI Explainer
-│   │   ├── database.py            # SQLite connection & session manager
-│   │   ├── models.py              # SQLAlchemy database ORM models
-│   │   ├── pipeline.py            # CLI batch runner
-│   │   └── main.py                # FastAPI REST API endpoints
-│   └── test_backend.py            # 6-step automated backend test suite
+│   ├── data/
+│   │   └── logs.db                # SQLite database (stores all 5,000 logs)
+│   └── src/
+│       ├── detector.py            # Feature engineering & Isolation Forest
+│       ├── explainer.py           # Gemini LLM & Heuristic AI Explainer
+│       ├── database.py            # SQLite connection & session manager
+│       ├── models.py              # SQLAlchemy database ORM models
+│       ├── pipeline.py            # CLI batch runner
+│       └── main.py                # FastAPI REST API endpoints
 └── frontend/
     ├── index.html                 # Main HTML entry
     ├── package.json               # React 18, Vite, Lucide-React
@@ -213,8 +230,9 @@ Digiplus/
         │   └── api.js             # REST API integration with FastAPI
         └── components/
             ├── MetricCards.jsx    # Top KPI cards
-            ├── LogTable.jsx       # Log stream table with anomaly badges
+            ├── LogTable.jsx       # Log stream table with anomaly badges & pagination
             ├── AIDrawer.jsx       # Slide-over AI root cause & playbook view
+            ├── ReportModal.jsx    # Executive SRE report preview & PDF/MD export
             └── UploadModal.jsx    # Drag-and-drop CSV dataset upload
 ```
 
