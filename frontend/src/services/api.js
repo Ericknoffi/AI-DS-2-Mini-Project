@@ -2,9 +2,12 @@ const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 export const api = {
   // Fetch dashboard analytics
-  getAnalytics: async () => {
+  getAnalytics: async (batchId = null) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/analytics`);
+      const url = batchId && batchId !== 'all' 
+        ? `${API_BASE_URL}/analytics?batch_id=${encodeURIComponent(batchId)}`
+        : `${API_BASE_URL}/analytics`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch analytics');
       return await res.json();
     } catch (err) {
@@ -16,6 +19,7 @@ export const api = {
   // Fetch paginated logs with filters
   getLogs: async (params = {}) => {
     const query = new URLSearchParams();
+    if (params.batch_id && params.batch_id !== 'all') query.append('batch_id', params.batch_id);
     if (params.anomaly_only) query.append('anomaly_only', 'true');
     if (params.status_code) query.append('status_code', params.status_code);
     if (params.ip_search) query.append('ip_search', params.ip_search);
@@ -29,6 +33,32 @@ export const api = {
     } catch (err) {
       console.warn('Logs fetch warning:', err);
       return { logs: [], total: 0 };
+    }
+  },
+
+  // Fetch all uploaded batches / log file history
+  getBatches: async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/batches`);
+      if (!res.ok) throw new Error('Failed to fetch upload batches');
+      return await res.json();
+    } catch (err) {
+      console.warn('Batches fetch warning:', err);
+      return { batches: [] };
+    }
+  },
+
+  // Delete a specific batch
+  deleteBatch: async (batchId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/batches/${encodeURIComponent(batchId)}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error('Failed to delete batch');
+      return await res.json();
+    } catch (err) {
+      console.error('Delete batch error:', err);
+      throw err;
     }
   },
 

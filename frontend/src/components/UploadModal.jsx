@@ -32,11 +32,11 @@ export default function UploadModal({ isOpen, onClose, onUploadSuccess }) {
       const res = await api.uploadCSV(file);
       setSuccess(`Successfully ingested ${res.total_records} logs (${res.anomalies_detected} anomalies flagged).`);
       setTimeout(() => {
-        onUploadSuccess();
+        onUploadSuccess(res.batch_id);
         onClose();
         setSuccess(null);
         setFile(null);
-      }, 1200);
+      }, 1000);
     } catch (err) {
       setError(err.message || 'Upload failed');
     } finally {

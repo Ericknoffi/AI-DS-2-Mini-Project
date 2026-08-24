@@ -1,0 +1,45 @@
+================================================================================
+      SENTINELLOG AI — 2,000 LOG DATASET GROUND TRUTH ANSWER KEY
+================================================================================
+
+Target File: testcases/test_dataset_2000.csv
+Total Log Records: 2,000
+Normal Records:    1,835 (91.75%)
+Anomalous Records: 165 (8.25%)
+
+--------------------------------------------------------------------------------
+DETAILED INJECTED ANOMALY SCENARIOS BREAKDOWN:
+--------------------------------------------------------------------------------
+
+[1] CREDENTIAL STUFFING & AUTH BRUTE FORCE
+    • Location in File: Rows 401 - 440 (40 records)
+    • Telemetry Pattern: IP: 198.51.100.88 | Location: Russia | UA: python-requests/2.28.1
+    • Algorithmic Reason: Rapid sequence of 401/403 Unauthorized POST requests with rotating session tokens.
+
+[2] DDOS & HIGH-VELOCITY SCRAPER FLOOD
+    • Location in File: Rows 701 - 750 (50 records)
+    • Telemetry Pattern: IP: 203.0.113.99 | Location: China | UA: Go-http-client/1.1
+    • Algorithmic Reason: Sub-second burst velocity (>2 req/sec) violating rate-limits with 429 & 503 error codes.
+
+[3] IMPOSSIBLE TRAVEL & SESSION HIJACKING
+    • Location in File: Rows 1056 - 1070 (15 records)
+    • Telemetry Pattern: Session ID: #sess_vip_us_77 (US -> Nigeria in 30s) | IP: 102.89.23.6
+    • Algorithmic Reason: Active session token used in Nigeria 30 seconds after US activity with 403 forbidden errors.
+
+[4] CASCADING MICROSERVICE OUTAGE (5XX CASCADE)
+    • Location in File: Rows 1401 - 1435 (35 records)
+    • Telemetry Pattern: Multi-user global 500/502/503 HTTP errors
+    • Algorithmic Reason: Dense cluster of internal server error responses across distinct legitimate sessions.
+
+[5] OFF-PEAK MASS DELETION OPERATION
+    • Location in File: Rows 1751 - 1775 (25 records)
+    • Telemetry Pattern: IP: 198.51.100.199 | Method: DELETE | UA: curl/7.88.1 at 03:15 AM
+    • Algorithmic Reason: Barrage of destructive DELETE requests from curl tool signature during off-peak hours.
+
+================================================================================
+HOW TO TEST IN THE APPLICATION:
+1. Open the UI at http://localhost:3000
+2. Click 'Upload CSV Logs' in the top header.
+3. Select 'testcases/test_dataset_2000.csv'.
+4. The Isolation Forest model should flag ~165 anomalies matching this answer key.
+================================================================================

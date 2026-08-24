@@ -1,0 +1,35 @@
+================================================================================
+      SENTINELLOG AI — 1,000 STEALTH APT TEST DATASET ANSWER KEY
+================================================================================
+
+Target File: testcases/stealth_apt_attack_1000.csv
+Total Log Records: 1,000
+Normal Records:    920 (92.00%)
+Anomalous Records: 80 (8.00%)
+
+--------------------------------------------------------------------------------
+STEALTH ATTACK SCENARIOS BREAKDOWN:
+--------------------------------------------------------------------------------
+
+[1] DISTRIBUTED IP-HOPPING SESSION PROBE (SLOW & LOW)
+    • Location in File: Rows 251 - 280 (30 records)
+    • Telemetry Pattern: Target Session: #admin_sess_9988 | Multiple IPs (45.33.32.x) | Location: Netherlands
+    • Algorithmic Reason: Single session ID accessed across multiple rapidly rotating IP addresses with continuous 401/403 authorization failures.
+
+[2] AUTOMATED SECURITY SCANNER & UA CHURN (SQLMAP/NIKTO/CURL)
+    • Location in File: Rows 501 - 525 (25 records)
+    • Telemetry Pattern: IP: 185.220.101.5 | Tools: sqlmap, Nikto, Nmap, curl | Session: #sess_finance_corp
+    • Algorithmic Reason: Known automated penetration scanning signatures and rapid User-Agent switching on a single corporate session.
+
+[3] OFF-PEAK DATABASE EXHAUSTION & EXFILTRATION (03:30 AM)
+    • Location in File: Rows 751 - 775 (25 records)
+    • Telemetry Pattern: IP: 194.26.29.112 (Romania) | Status: 500/504 Gateway Timeout | Time: 03:30 AM
+    • Algorithmic Reason: Off-peak automated script exhausting backend database worker threads resulting in 504 Gateway Timeout cascades.
+
+================================================================================
+HOW TO TEST IN THE APPLICATION:
+1. Open the UI at http://localhost:3000
+2. Click 'Upload CSV Logs' in the top header.
+3. Select 'testcases/stealth_apt_attack_1000.csv'.
+4. The Isolation Forest model will isolate the 80 stealth anomalies matching this key.
+================================================================================

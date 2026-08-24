@@ -11,13 +11,32 @@ from dotenv import load_dotenv
 # Ensure local imports work
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+import uuid
+from datetime import datetime
+
 from database import engine, get_db, Base
-from models import LogEntryModel
+from models import LogEntryModel, UploadBatchModel
 from detector import predict_logs, load_model, run_detector_pipeline, save_model, list_available_models
 from explainer import explain_log_entry
 
 # Initialize Database tables
 Base.metadata.create_all(bind=engine)
+
+def auto_migrate_db():
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            res = conn.execute(text("PRAGMA table_info(logs);")).fetchall()
+            existing_cols = [row[1] for row in res]
+            if "batch_id" not in existing_cols:
+                conn.execute(text("ALTER TABLE logs ADD COLUMN batch_id VARCHAR(100) DEFAULT 'default_batch';"))
+            if "batch_filename" not in existing_cols:
+                conn.execute(text("ALTER TABLE logs ADD COLUMN batch_filename VARCHAR(150) DEFAULT 'dataset.csv';"))
+            conn.commit()
+        except Exception as e:
+            print(f"[DB Migration] Info: {e}")
+
+auto_migrate_db()
 
 load_dotenv()
 
@@ -56,9 +75,9 @@ async def upload_and_detect_logs(
 ):
     """
     1. Ingests uploaded CSV.
-    2. Loads saved Isolation Forest model bundle.
+    2. Generates unique batch_id for dataset isolation.
     3. Runs anomaly detection (score + reason).
-    4. Persists records to database.
+    4. Persists batch metadata and records to database.
     """
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported.")
@@ -90,10 +109,29 @@ async def upload_and_detect_logs(
     else:
         detected_df = predict_logs(df, model_path=MODEL_PATH)
 
-    # Persist to database
+    # Generate unique batch ID
+    batch_id = f"batch_{int(datetime.utcnow().timestamp())}_{uuid.uuid4().hex[:6]}"
+    total_logs = len(detected_df)
+    anomalies_count = int(detected_df['predicted_anomaly'].sum())
+    anomaly_rate = round((anomalies_count / total_logs) * 100, 2)
+
+    # Create Batch Record
+    batch_record = UploadBatchModel(
+        id=batch_id,
+        filename=file.filename,
+        uploaded_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        total_logs=total_logs,
+        anomalies_detected=anomalies_count,
+        anomaly_rate=anomaly_rate
+    )
+    db.add(batch_record)
+
+    # Persist logs to database tagged with batch_id
     db_records = []
     for _, row in detected_df.iterrows():
         entry = LogEntryModel(
+            batch_id=batch_id,
+            batch_filename=file.filename,
             timestamp=str(row['Timestamp']),
             ip_address=str(row['IP_Address']),
             request_type=str(row['Request_Type']),
@@ -107,26 +145,95 @@ async def upload_and_detect_logs(
         )
         db_records.append(entry)
 
-    # Bulk insert
     db.bulk_save_objects(db_records)
     db.commit()
 
-    total_logs = len(detected_df)
-    anomalies_count = int(detected_df['predicted_anomaly'].sum())
-
     return {
         "message": "Logs successfully ingested and analyzed.",
+        "batch_id": batch_id,
         "filename": file.filename,
         "total_records": total_logs,
         "anomalies_detected": anomalies_count,
-        "anomaly_rate_percent": round((anomalies_count / total_logs) * 100, 2)
+        "anomaly_rate_percent": anomaly_rate
     }
 
 # =====================================================================
-# 2. QUERY & FILTER LOG ENTRIES
+# 2. BATCH & DATASET HISTORY ENDPOINTS
+# =====================================================================
+@app.get("/api/batches")
+def get_upload_batches(db: Session = Depends(get_db)):
+    """
+    Returns the history of all uploaded log files/batches.
+    Only returns batches that actually have logs in the database.
+    """
+    from sqlalchemy import func
+    batch_counts = dict(db.query(LogEntryModel.batch_id, func.count(LogEntryModel.id)).group_by(LogEntryModel.batch_id).all())
+
+    # Delete phantom records from UploadBatchModel if no logs exist for them
+    existing_batches = db.query(UploadBatchModel).all()
+    for b in existing_batches:
+        count = batch_counts.get(b.id, 0)
+        if count == 0:
+            db.delete(b)
+    db.commit()
+
+    # Re-query cleaned batches
+    batches = db.query(UploadBatchModel).order_by(UploadBatchModel.uploaded_at.desc()).all()
+    
+    # If no batches registered yet in UploadBatchModel but logs exist, register the existing batch
+    if not batches:
+        for b_id, count in batch_counts.items():
+            if count > 0:
+                anom_count = db.query(LogEntryModel).filter(LogEntryModel.batch_id == b_id, LogEntryModel.predicted_anomaly == 1).count()
+                rate = round((anom_count / count) * 100, 2)
+                sample = db.query(LogEntryModel.batch_filename).filter(LogEntryModel.batch_id == b_id).first()
+                fname = sample[0] if sample and sample[0] else "dataset.csv"
+                new_b = UploadBatchModel(
+                    id=b_id or "default_batch",
+                    filename=fname,
+                    uploaded_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                    total_logs=count,
+                    anomalies_detected=anom_count,
+                    anomaly_rate=rate
+                )
+                db.add(new_b)
+        db.commit()
+        batches = db.query(UploadBatchModel).order_by(UploadBatchModel.uploaded_at.desc()).all()
+
+    return {
+        "batches": batches,
+        "count": len(batches)
+    }
+
+@app.delete("/api/batches/{batch_id}")
+def delete_upload_batch(batch_id: str, db: Session = Depends(get_db)):
+    """
+    Deletes a specific batch (including default_batch) or all batches and all associated log records.
+    """
+    if batch_id == "all":
+        deleted_logs = db.query(LogEntryModel).delete()
+        db.query(UploadBatchModel).delete()
+    elif batch_id == "default_batch":
+        from sqlalchemy import or_
+        deleted_logs = db.query(LogEntryModel).filter(
+            or_(LogEntryModel.batch_id == "default_batch", LogEntryModel.batch_id.is_(None), LogEntryModel.batch_id == "")
+        ).delete()
+        db.query(UploadBatchModel).filter(UploadBatchModel.id == "default_batch").delete()
+    else:
+        deleted_logs = db.query(LogEntryModel).filter(LogEntryModel.batch_id == batch_id).delete()
+        db.query(UploadBatchModel).filter(UploadBatchModel.id == batch_id).delete()
+
+    db.commit()
+    return {
+        "message": f"Successfully deleted batch '{batch_id}' and {deleted_logs} logs."
+    }
+
+# =====================================================================
+# 3. QUERY & FILTER LOG ENTRIES (Supports Batch Filtering)
 # =====================================================================
 @app.get("/api/logs")
 def get_logs(
+    batch_id: Optional[str] = Query(None, description="Filter by specific upload batch_id"),
     anomaly_only: bool = Query(False, description="Filter only anomalous logs"),
     status_code: Optional[int] = Query(None, description="Filter by status code"),
     ip_search: Optional[str] = Query(None, description="Search by IP"),
@@ -136,6 +243,8 @@ def get_logs(
 ):
     query = db.query(LogEntryModel)
     
+    if batch_id and batch_id != "all":
+        query = query.filter(LogEntryModel.batch_id == batch_id)
     if anomaly_only:
         query = query.filter(LogEntryModel.predicted_anomaly == 1)
     if status_code:
@@ -154,7 +263,7 @@ def get_logs(
     }
 
 # =====================================================================
-# 3. AI EXPLANATION FOR FLAGGED LOG ENTRY
+# 4. AI EXPLANATION FOR FLAGGED LOG ENTRY
 # =====================================================================
 @app.post("/api/logs/{log_id}/explain")
 def explain_log(log_id: int, db: Session = Depends(get_db)):
@@ -197,11 +306,18 @@ def explain_log(log_id: int, db: Session = Depends(get_db)):
     }
 
 # =====================================================================
-# 4. ANALYTICS & DASHBOARD METRICS
+# 5. ANALYTICS & DASHBOARD METRICS (Supports Batch Filtering)
 # =====================================================================
 @app.get("/api/analytics")
-def get_analytics(db: Session = Depends(get_db)):
-    total = db.query(LogEntryModel).count()
+def get_analytics(
+    batch_id: Optional[str] = Query(None, description="Filter by specific upload batch_id"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(LogEntryModel)
+    if batch_id and batch_id != "all":
+        query = query.filter(LogEntryModel.batch_id == batch_id)
+
+    total = query.count()
     if total == 0:
         return {
             "total_logs": 0,
@@ -211,17 +327,19 @@ def get_analytics(db: Session = Depends(get_db)):
             "status_distribution": {}
         }
 
-    anomalies = db.query(LogEntryModel).filter(LogEntryModel.predicted_anomaly == 1).count()
+    anomalies = query.filter(LogEntryModel.predicted_anomaly == 1).count()
     
-    # Status code breakdown
     from sqlalchemy import func
-    status_counts = db.query(LogEntryModel.status_code, func.count(LogEntryModel.id))\
-        .group_by(LogEntryModel.status_code).all()
+    status_query = db.query(LogEntryModel.status_code, func.count(LogEntryModel.id))
+    if batch_id and batch_id != "all":
+        status_query = status_query.filter(LogEntryModel.batch_id == batch_id)
+    status_counts = status_query.group_by(LogEntryModel.status_code).all()
         
-    # Top malicious IPs
-    top_ips = db.query(LogEntryModel.ip_address, func.count(LogEntryModel.id))\
-        .filter(LogEntryModel.predicted_anomaly == 1)\
-        .group_by(LogEntryModel.ip_address)\
+    top_ips_query = db.query(LogEntryModel.ip_address, func.count(LogEntryModel.id))\
+        .filter(LogEntryModel.predicted_anomaly == 1)
+    if batch_id and batch_id != "all":
+        top_ips_query = top_ips_query.filter(LogEntryModel.batch_id == batch_id)
+    top_ips = top_ips_query.group_by(LogEntryModel.ip_address)\
         .order_by(func.count(LogEntryModel.id).desc())\
         .limit(5).all()
 
