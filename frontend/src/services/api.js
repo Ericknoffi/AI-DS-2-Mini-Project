@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const rawBase = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = rawBase.endsWith('/api') ? rawBase : `${rawBase.replace(/\/$/, '')}/api`;
 
 export const api = {
   // Fetch dashboard analytics

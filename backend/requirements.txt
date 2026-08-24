@@ -1,0 +1,18 @@
+# Machine Learning & Data Processing
+scikit-learn>=1.3.0
+pandas>=2.0.0
+numpy>=1.24.0
+joblib>=1.3.0
+
+# Backend Web API Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.4.0
+python-multipart>=0.0.6
+
+# Database & Persistence
+sqlalchemy>=2.0.0
+
+# AI / LLM Integrations
+google-generativeai>=0.7.0
+python-dotenv>=1.0.0

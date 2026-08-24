@@ -583,7 +583,9 @@ def rerun_detection_with_model(
 
 if __name__ == "__main__":
     import uvicorn
-    print("\n🚀 Starting Smart Log Analyzer Backend on http://127.0.0.1:8000 ...")
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    host = "0.0.0.0"
+    print(f"\n🚀 Starting SentinelLog AI Backend on http://{host}:{port} ...")
+    uvicorn.run("main:app", host=host, port=port, reload=False)
 
 
