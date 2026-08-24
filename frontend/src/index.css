@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .cyber-card {
+    background-color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  .dark .cyber-card {
+    background-color: rgba(19, 27, 46, 0.7);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(61, 73, 76, 0.4);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  }
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
