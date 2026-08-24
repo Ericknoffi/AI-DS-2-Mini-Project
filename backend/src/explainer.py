@@ -255,7 +255,7 @@ Respond ONLY with valid JSON strictly conforming to this schema:
                 response = model.generate_content(prompt)
                 parsed = clean_json_response(response.text)
                 if parsed and "summary" in parsed and "root_cause" in parsed:
-                    print(f"[AI Engine] ✔ Live response received from Google Gemini ({model_identifier})!")
+                    print(f"[AI Engine] ✔ Response received from Google Gemini ({model_identifier})!")
                     parsed["provider"] = f"Google Gemini ({model_identifier})"
                     return parsed
             except Exception as model_err:

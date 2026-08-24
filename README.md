@@ -41,15 +41,16 @@ Recall                   | 0.8649           | 0.9811           | +11.62%
 
 ---
 
-## 🌟 Advanced SRE & Platform Features
+## 🌟 Advanced Platform & SRE Features
 
 | Feature | Description |
 | :--- | :--- |
+| 📊 **Visual Analytics Hub** | Dedicated telemetry dashboard featuring **Anomaly vs Baseline Donut Charts**, **Threat Vector Classification**, **Bot Automation Signatures**, **Hourly Timelines**, and **Geographic Heatmaps**. |
+| 📁 **Dataset History & Batch Isolation** | Uploaded log files are stored as discrete, isolated datasets in SQLite. Switch between files or delete past uploads with 1 click via the **Dataset History** modal. |
 | 🎛️ **Manual ML Model Selector** | Dynamically scans `backend/models/` and lets operators switch between **Isolation Forest (300 Trees)**, **One-Class SVM**, and custom models on-the-fly. |
 | 🎚️ **Dynamic Sensitivity Slider** | Real-time threshold slider ($0.50 \leftrightarrow 0.95$) with *Permissive*, *Balanced*, and *Strict* modes for instant alert tuning. |
 | 📑 **One-Click Executive SRE Report** | Generates instant compliance audit reports with **Print-to-PDF** and **Markdown (.md)** download options. |
 | 🌓 **Dark & Light Mode Toggle** | Cyber-SRE Dark Mode and High-Contrast Enterprise Light Mode with persistent `localStorage` preference. |
-| 📄 **Full 5,000-Log Pagination** | High-performance log stream navigation across all 5,000+ records with configurable rows per page (`50`, `100`, `250`, `500`, `All`). |
 | 🤖 **AI Dual-Engine Strategy** | Google Gemini 1.5 Flash structured reasoning with automatic fallback to an offline heuristic SRE expert engine. |
 
 ---
@@ -59,7 +60,7 @@ Recall                   | 0.8649           | 0.9811           | +11.62%
 ```
   ┌─────────────────────────────────────────────────────────────┐
   │                        LOG INGESTION                        │
-  │     (CSV Upload, Live Streaming, or Synthetic Generator)    │
+  │     (CSV Upload, Ingestion Pipeline, or Synthetic Stream)   │
   └──────────────────────────────┬──────────────────────────────┘
                                  │
                                  ▼
@@ -98,10 +99,11 @@ Recall                   | 0.8649           | 0.9811           | +11.62%
                                  ▼
   ┌─────────────────────────────────────────────────────────────┐
   │                 SRE COMMAND CENTER DASHBOARD                │
-  │  • Real-time log stream table with risk badges              │
+  │  • Ingested log stream table with risk badges               │
+  │  • Visual Analytics & Telemetry Dashboard                   │
   │  • Interactive Slide-Over AI Diagnostic Drawer              │
   │  • Executive PDF / Markdown Audit Exporter                  │
-  │  • Drag-and-drop CSV dataset ingestion                      │
+  │  • Dataset History & Batch Isolation Manager                │
   └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -116,6 +118,19 @@ Recall                   | 0.8649           | 0.9811           | +11.62%
 | **3. Credential Stuffing / Auth Brute Force** | Rapid `POST` attempts rotating fake sessions with continuous 401/403 codes. | `is_post_auth_fail=1`, `ip_auth_fail_2m`, `ip_session_churn` |
 | **4. Cascading Microservice Outage** | Cluster of normal user sessions suddenly receiving 500/502/503 errors. | `global_5xx_density_5m`, `status_severity=1.0` |
 | **5. Off-Peak Data Exfiltration / Deletion** | Barrage of `DELETE` requests from `curl` at 3:00 AM off-peak. | `is_delete_off_peak=1`, `is_bot_ua=1` |
+
+---
+
+## 🧪 Included Testcase Datasets & Answer Keys
+
+The `testcases/` folder contains realistic test generators and ground truth answer keys:
+
+1. **`testcases/generate_test_dataset.py`**:
+   - Generates `test_dataset_2000.csv` (2,000 logs containing all 5 injected anomaly patterns).
+   - Generates `test_dataset_2000.txt` with exact row numbers and answers.
+2. **`testcases/generate_stealth_apt_dataset.py`**:
+   - Generates `stealth_apt_attack_1000.csv` (1,000 logs simulating slow & low IP-hopping probes, UA spoofing, and 03:30 AM database exhaustion).
+   - Generates `stealth_apt_attack_1000.txt` with ground truth verification key.
 
 ---
 
@@ -161,8 +176,8 @@ python backend/src/detector.py
 
 #### B. Start the FastAPI Backend Server
 ```bash
-# From backend directory
-python src/main.py
+# From workspace root
+python backend/src/main.py
 ```
 *Backend API online at **http://127.0.0.1:8000** (Interactive Swagger docs: **http://127.0.0.1:8000/docs**)*
 
@@ -198,7 +213,12 @@ Digiplus/
 ├── .gitignore                     # Git ignore rules (protects API keys, venv, SQLite)
 ├── .env.example                   # Environment configuration template
 ├── requirements.txt               # Workspace dependencies
-├── README.md                      # Project documentation & benchmark scores
+├── README.md                      # Comprehensive documentation & benchmark scores
+├── testcases/                     # Test generators, datasets, and ground truth keys
+│   ├── generate_test_dataset.py   # 2,000-log multi-anomaly generator
+│   ├── generate_stealth_apt_dataset.py # 1,000-log stealth APT generator
+│   ├── 01_normal_traffic_sample.csv
+│   └── 02_credential_stuffing_attack.csv
 ├── backend/
 │   ├── .env                       # Environment variables (GEMINI_API_KEY)
 │   ├── requirements.txt           # Backend dependencies
@@ -209,12 +229,12 @@ Digiplus/
 │   │   ├── isolation_forest.joblib# Serialized Isolation Forest model bundle
 │   │   └── detected_logs.csv      # Processed dataset with anomaly scores
 │   ├── data/
-│   │   └── logs.db                # SQLite database (stores all 5,000 logs)
+│   │   └── logs.db                # SQLite database (stores isolated batch logs)
 │   └── src/
 │       ├── detector.py            # Feature engineering & Isolation Forest
 │       ├── explainer.py           # Gemini LLM & Heuristic AI Explainer
-│       ├── database.py            # SQLite connection & session manager
-│       ├── models.py              # SQLAlchemy database ORM models
+│       ├── database.py            # SQLite connection & auto-migration
+│       ├── models.py              # SQLAlchemy ORM models (Logs & Upload Batches)
 │       ├── pipeline.py            # CLI batch runner
 │       └── main.py                # FastAPI REST API endpoints
 └── frontend/
@@ -224,14 +244,16 @@ Digiplus/
     ├── tailwind.config.js         # Cyber-SRE Tailwind theme tokens
     └── src/
         ├── main.jsx               # React DOM root
-        ├── App.jsx                # SRE Command Center dashboard
+        ├── App.jsx                # Main Command Center dashboard & view tabs
         ├── index.css              # Custom styling & .cyber-card styles
         ├── services/
         │   └── api.js             # REST API integration with FastAPI
         └── components/
-            ├── MetricCards.jsx    # Top KPI cards
-            ├── LogTable.jsx       # Log stream table with anomaly badges & pagination
+            ├── MetricCards.jsx    # SRE KPI summary cards (100% dynamic)
+            ├── VisualDashboard.jsx# Visual analytics hub (Pie charts, timelines, bot signatures)
+            ├── LogTable.jsx       # Ingested log stream table with sensitivity slider & pagination
             ├── AIDrawer.jsx       # Slide-over AI root cause & playbook view
+            ├── BatchHistoryModal.jsx # Uploaded dataset history & isolation manager
             ├── ReportModal.jsx    # Executive SRE report preview & PDF/MD export
             └── UploadModal.jsx    # Drag-and-drop CSV dataset upload
 ```

@@ -341,14 +341,121 @@ def get_analytics(
         top_ips_query = top_ips_query.filter(LogEntryModel.batch_id == batch_id)
     top_ips = top_ips_query.group_by(LogEntryModel.ip_address)\
         .order_by(func.count(LogEntryModel.id).desc())\
-        .limit(5).all()
+        .limit(6).all()
+
+    # HTTP Methods distribution
+    methods_query = db.query(LogEntryModel.request_type, func.count(LogEntryModel.id))
+    if batch_id and batch_id != "all":
+        methods_query = methods_query.filter(LogEntryModel.batch_id == batch_id)
+    method_counts = methods_query.group_by(LogEntryModel.request_type).all()
+
+    # Location distribution
+    loc_query = db.query(LogEntryModel.location, func.count(LogEntryModel.id))
+    if batch_id and batch_id != "all":
+        loc_query = loc_query.filter(LogEntryModel.batch_id == batch_id)
+    loc_counts = loc_query.group_by(LogEntryModel.location).order_by(func.count(LogEntryModel.id).desc()).limit(8).all()
+
+    # Score brackets
+    normal_low = query.filter(LogEntryModel.anomaly_score < 0.35).count()
+    normal_mod = query.filter(LogEntryModel.anomaly_score >= 0.35, LogEntryModel.anomaly_score < 0.70).count()
+    anom_high = query.filter(LogEntryModel.anomaly_score >= 0.70, LogEntryModel.anomaly_score < 0.85).count()
+    anom_crit = query.filter(LogEntryModel.anomaly_score >= 0.85).count()
+
+    # Client / User-Agent Classification
+    all_uas = query.with_entities(LogEntryModel.user_agent).all()
+    client_counts = {
+        "Standard Desktop Browsers": 0,
+        "Mobile Clients (iOS / Android)": 0,
+        "Automated Bots & Scripts (Python, Go, curl)": 0,
+        "Security Scanners & Headless Tools": 0
+    }
+    for (ua,) in all_uas:
+        ua_str = str(ua or "").lower()
+        if any(s in ua_str for s in ["sqlmap", "nikto", "nmap", "headless"]):
+            client_counts["Security Scanners & Headless Tools"] += 1
+        elif any(s in ua_str for s in ["python", "curl", "go-http", "wget", "postman"]):
+            client_counts["Automated Bots & Scripts (Python, Go, curl)"] += 1
+        elif any(s in ua_str for s in ["iphone", "android", "mobile"]):
+            client_counts["Mobile Clients (iOS / Android)"] += 1
+        else:
+            client_counts["Standard Desktop Browsers"] += 1
+
+    # Detected Threat Vector Category Breakdown (from anomaly reasons & telemetry)
+    anom_records = query.filter(LogEntryModel.predicted_anomaly == 1).all()
+    categories = {
+        "Auth Brute Force & Credential Stuffing": 0,
+        "High-Velocity DDoS & Rate Limit Flood": 0,
+        "Impossible Travel & Session Hijack": 0,
+        "Cascading 5xx Microservice Outage": 0,
+        "Off-Peak Data Deletion / Exfil": 0
+    }
+    for r in anom_records:
+        reason = str(r.flag_reason or "").lower()
+        status = int(r.status_code or 200)
+        req_type = str(r.request_type or "").upper()
+
+        # 1. Impossible Travel & Session Hijacking takes highest specific priority
+        if "impossible travel" in reason or "session hijacking" in reason or "multi-location" in reason or "session_loc" in reason or ("session" in reason and "location" in reason):
+            categories["Impossible Travel & Session Hijack"] += 1
+        # 2. Off-Peak Mass Deletion
+        elif req_type == "DELETE" or "off-peak" in reason or "delete" in reason:
+            categories["Off-Peak Data Deletion / Exfil"] += 1
+        # 3. Cascading Microservice Outage
+        elif status in [500, 502, 503, 504] or "5xx" in reason or "outage" in reason or "cascade" in reason:
+            categories["Cascading 5xx Microservice Outage"] += 1
+        # 4. Rate-limit and Burst DDoS
+        elif status == 429 or "rate-limit" in reason or "burst" in reason or "velocity" in reason:
+            categories["High-Velocity DDoS & Rate Limit Flood"] += 1
+        # 5. Auth Brute Force / Credential Stuffing
+        elif status in [401, 403] or "auth" in reason or "brute" in reason or "credential" in reason:
+            categories["Auth Brute Force & Credential Stuffing"] += 1
+        else:
+            categories["High-Velocity DDoS & Rate Limit Flood"] += 1
+
+    # Timeline buckets (Hourly aggregation)
+    time_query = db.query(
+        func.substr(LogEntryModel.timestamp, 1, 13).label('hour'),
+        func.count(LogEntryModel.id).label('total'),
+        func.sum(LogEntryModel.predicted_anomaly).label('anomalies')
+    )
+    if batch_id and batch_id != "all":
+        time_query = time_query.filter(LogEntryModel.batch_id == batch_id)
+    time_buckets = time_query.group_by(func.substr(LogEntryModel.timestamp, 1, 13))\
+        .order_by(func.substr(LogEntryModel.timestamp, 1, 13).asc()).limit(24).all()
+
+    timeline = [
+        {
+            "time": str(t.hour) + ":00",
+            "total": int(t.total),
+            "anomalies": int(t.anomalies or 0),
+            "normal": int(t.total - (t.anomalies or 0))
+        }
+        for t in time_buckets
+    ]
+
+    # Calculate dynamic max threat score & active category count
+    max_score = query.with_entities(func.max(LogEntryModel.anomaly_score)).scalar() or 0.0
+    active_threat_cats = sum(1 for c in categories.values() if c > 0)
 
     return {
         "total_logs": total,
         "anomaly_count": anomalies,
         "anomaly_rate": round((anomalies / total) * 100, 2),
+        "max_threat_score": round(float(max_score), 2),
+        "active_threat_categories": active_threat_cats,
         "status_distribution": {str(s): count for s, count in status_counts},
-        "top_threat_ips": [{"ip": ip, "anomalies": count} for ip, count in top_ips]
+        "top_threat_ips": [{"ip": ip, "anomalies": count} for ip, count in top_ips],
+        "method_distribution": {str(m): count for m, count in method_counts},
+        "location_distribution": [{"location": str(loc), "count": count} for loc, count in loc_counts],
+        "client_distribution": client_counts,
+        "threat_categories": categories,
+        "score_brackets": {
+            "low": normal_low,
+            "moderate": normal_mod,
+            "high": anom_high,
+            "critical": anom_crit
+        },
+        "timeline": timeline
     }
 
 # =====================================================================

@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Upload, RefreshCw, Activity, Terminal, Sparkles, Sun, Moon, FileText, Cpu, Folder, Layers } from 'lucide-react';
+import { 
+  Shield, Upload, RefreshCw, Activity, Terminal, Sparkles, Sun, Moon, 
+  FileText, Cpu, Folder, Layers, BarChart3, Table 
+} from 'lucide-react';
 import MetricCards from './components/MetricCards';
 import LogTable from './components/LogTable';
+import VisualDashboard from './components/VisualDashboard';
 import AIDrawer from './components/AIDrawer';
 import UploadModal from './components/UploadModal';
 import ReportModal from './components/ReportModal';
@@ -15,6 +19,9 @@ export default function App() {
   const [searchIP, setSearchIP] = useState('');
   const [sensitivity, setSensitivity] = useState(0.70);
   
+  // View Tab state: 'logs' (Original table) or 'visual' (Visual Analytics Hub)
+  const [activeTab, setActiveTab] = useState('logs');
+
   // Dataset Batch History state
   const [batches, setBatches] = useState([]);
   const [activeBatchId, setActiveBatchId] = useState('all');
@@ -172,33 +179,6 @@ export default function App() {
             </h1>
           </div>
 
-          {/* Active Dataset Selector Dropdown */}
-          <div className="ml-2 hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-sm">
-            <Folder className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span className="text-xs font-mono text-slate-500 dark:text-slate-400 font-medium">Dataset:</span>
-            <select
-              value={activeBatchId}
-              onChange={(e) => setActiveBatchId(e.target.value)}
-              className="bg-transparent text-xs font-mono font-bold text-amber-600 dark:text-amber-400 focus:outline-none cursor-pointer py-0.5 max-w-[200px] truncate"
-            >
-              <option value="all" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-                All Datasets (Combined)
-              </option>
-              {batches.map((b) => (
-                <option key={b.id} value={b.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans">
-                  {b.filename} ({b.total_logs} logs)
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => setIsBatchHistoryOpen(true)}
-              className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded font-semibold transition-colors"
-              title="Manage Uploaded Datasets History"
-            >
-              History
-            </button>
-          </div>
-
           {/* Manual ML Model Selector */}
           <div className="ml-2 hidden lg:flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-sm">
             <Cpu className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
@@ -220,10 +200,25 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Dataset History Button */}
+          <button
+            onClick={() => setIsBatchHistoryOpen(true)}
+            className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 transition-colors"
+            title="View & Manage Uploaded Dataset History"
+          >
+            <Folder className="w-3.5 h-3.5 text-amber-500" />
+            <span>Dataset History</span>
+            {batches.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-800/40 rounded-full font-bold">
+                {batches.length}
+              </span>
+            )}
+          </button>
+
           {/* Executive Report Button */}
           <button
             onClick={() => setIsReportOpen(true)}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 transition-colors"
             title="Export Executive SRE Report"
           >
             <FileText className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
@@ -266,46 +261,83 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full flex flex-col gap-6">
-        {/* Active Dataset Banner */}
-        <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 px-4 py-2 rounded-xl">
-          <div className="flex items-center gap-2 text-xs font-mono text-amber-800 dark:text-amber-300 font-medium">
-            <Layers className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            Analyzing Dataset: <span className="font-bold underline">{activeBatchName}</span>
+        
+        {/* Navigation Bar: Clean Section Tabs */}
+        <div className="flex items-center justify-between">
+          
+          {/* View Mode Tabs */}
+          <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-800 rounded-xl">
+            <button
+              onClick={() => setActiveTab('logs')}
+              className={`px-4 py-2 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all ${
+                activeTab === 'logs'
+                  ? 'bg-white dark:bg-slate-800 text-cyan-600 dark:text-cyan-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Table className="w-3.5 h-3.5" />
+              Ingested Log Records
+              <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full font-mono">
+                {logs.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('visual')}
+              className={`px-4 py-2 rounded-lg text-xs font-mono font-bold flex items-center gap-2 transition-all ${
+                activeTab === 'visual'
+                  ? 'bg-white dark:bg-slate-800 text-cyan-600 dark:text-cyan-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              Visual Analytics & Telemetry
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+            </button>
           </div>
-          <button
-            onClick={() => setIsBatchHistoryOpen(true)}
-            className="text-xs font-mono text-amber-700 dark:text-amber-400 hover:underline font-semibold"
-          >
-            View All Uploaded Datasets ({batches.length}) →
-          </button>
+
         </div>
 
-        {/* KPI Metrics */}
-        <MetricCards analytics={analytics} />
+        {/* TAB 1: ORIGINAL DETAILED LOG STREAM VIEW */}
+        {activeTab === 'logs' && (
+          <div className="flex flex-col gap-6 animate-in fade-in-50 duration-200">
+            {/* KPI Metrics Cards */}
+            <MetricCards analytics={analytics} />
 
-        {/* Log Stream Section */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-2">
-              <Terminal className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-              Ingested Log Stream & Behavioral Signals
-            </h2>
-            <span className="text-xs font-mono text-slate-500">
-              Showing {logs.length} entries for current dataset
-            </span>
+            {/* Log Stream Section */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                  <Terminal className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                  Ingested Log Stream & Behavioral Signals
+                </h2>
+                <span className="text-xs font-mono text-slate-500">
+                  Showing {logs.length} entries
+                </span>
+              </div>
+
+              <LogTable
+                logs={logs}
+                onSelectLog={handleSelectLog}
+                filterAnomalyOnly={filterAnomalyOnly}
+                setFilterAnomalyOnly={setFilterAnomalyOnly}
+                searchIP={searchIP}
+                setSearchIP={setSearchIP}
+                sensitivity={sensitivity}
+                setSensitivity={setSensitivity}
+              />
+            </div>
           </div>
+        )}
 
-          <LogTable
-            logs={logs}
-            onSelectLog={handleSelectLog}
-            filterAnomalyOnly={filterAnomalyOnly}
-            setFilterAnomalyOnly={setFilterAnomalyOnly}
-            searchIP={searchIP}
-            setSearchIP={setSearchIP}
-            sensitivity={sensitivity}
-            setSensitivity={setSensitivity}
+        {/* TAB 2: VISUAL ANALYTICS & TELEMETRY DASHBOARD */}
+        {activeTab === 'visual' && (
+          <VisualDashboard 
+            analytics={analytics}
+            activeBatchName={activeBatchName}
           />
-        </div>
+        )}
+
       </main>
 
       {/* Slide-Over AI Diagnostic Drawer */}
