@@ -274,3 +274,7 @@ Digiplus/
 1. **Rolling Window Memory**: Behavioral features rely on temporal rolling windows. In production, this can be scaled using Redis sliding-window counters or Apache Flink for real-time stream processing.
 2. **Cold Start for New IPs**: First-time IPs have no historical rolling window; the model relies on static status code severity and user-agent features until subsequent requests arrive.
 3. **Streaming Ingestion**: The current system supports batch CSV upload and simulated streaming; future enhancements could integrate directly with Kafka or AWS CloudWatch log streams.
+
+This project is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for the complete license text.
